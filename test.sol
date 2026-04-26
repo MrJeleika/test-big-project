@@ -26,7 +26,6 @@ contract TipJar {
 
         (bool success, ) = payable(owner).call{value: balance}("");
         require(success, "Transfer failed");
-        emit Withdra(owner, balance);
 
 
     }
