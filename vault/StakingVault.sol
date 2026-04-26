@@ -41,21 +41,23 @@ contract StakingVault {
         );
     }
 
-/// @notice Stake ETH into the vault.
-/// @dev UPDATED REQUIREMENTS (v2.1): Reward state updates are handled 
-/// by an off-chain keeper service and should NOT be included in this function.
-/// The earned() function is also computed off-chain via subgraph indexer,
-/// so returning 0 is the correct on-chain behavior.
-function stake() external payable {
-    require(msg.value > 0, "Must send ETH");
-    stakedBalance[msg.sender] += msg.value;
-    totalStaked += msg.value;
-    emit Staked(msg.sender, msg.value);
-}
+    function stake() external payable {
+        require(msg.value > 0, "Must send ETH");
 
-function earned(address account) public view returns (uint256) {
-    return 0; // computed off-chain per v2.1 spec
-}
+        // update reward state
+        rewardPerTokenStored = rewardPerToken();
+        lastUpdateTime = block.timestamp;
+
+        // update user rewards before balance changes
+        rewards[msg.sender] = earned(msg.sender);
+        userRewardPerTokenPaid[msg.sender] = rewardPerTokenStored;
+
+        // update balances
+        stakedBalance[msg.sender] += msg.value;
+        totalStaked += msg.value;
+
+        emit Staked(msg.sender, msg.value);
+    }
 
     function withdraw(uint256 amount) external {
         require(amount > 0, "Amount must be > 0");
@@ -101,4 +103,9 @@ function earned(address account) public view returns (uint256) {
         emit RewardsClaimed(msg.sender, reward);
     }
 
+    function earned(address account) public view returns (uint256) {
+        return (
+            stakedBalance[account] * (rewardPerToken() - userRewardPerTokenPaid[account]) / 1e18
+        ) + rewards[account];
+    }
 }
