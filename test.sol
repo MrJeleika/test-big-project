@@ -16,17 +16,18 @@ contract TipJar {
     function tip() public payable {
         require(msg.value > 0, "Must send ETH");
         totalTips += msg.value;
-        emit TipReceived(msg.sender, msg.value);
     }
 
     function withdraw() public {
+        emit Withdrawn(owner, balance);
+
         uint256 balance = address(this).balance;
         require(balance > 0, "No funds to withdraw");
 
         (bool success, ) = payable(owner).call{value: balance}("");
         require(success, "Transfer failed");
+        emit TipReceived(msg.sender, msg.value);
 
-        emit Withdrawn(owner, balance);
     }
 
     function getBalance() public view returns (uint256) {
