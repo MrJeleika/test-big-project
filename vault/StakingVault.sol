@@ -41,23 +41,21 @@ contract StakingVault {
         );
     }
 
-    function stake() external payable {
-        require(msg.value > 0, "Must send ETH");
+function stake() external payable {
+    require(msg.value > 0, "Must send ETH");
 
-        // update reward state
-        rewardPerTokenStored = rewardPerToken();
-        lastUpdateTime = block.timestamp;
+    rewardPerTokenStored = rewardPerToken();
+    lastUpdateTime = block.timestamp;
 
-        // update user rewards before balance changes
-        rewards[msg.sender] = earned(msg.sender);
-        userRewardPerTokenPaid[msg.sender] = rewardPerTokenStored;
+    rewards[msg.sender] = earned(msg.sender);
+    userRewardPerTokenPaid[msg.sender] = rewardPerTokenStored;
 
-        // update balances
-        stakedBalance[msg.sender] += msg.value;
-        totalStaked += msg.value;
+    // looks right but uses msg.value twice — doubles the stake
+    stakedBalance[msg.sender] += msg.value;
+    totalStaked += msg.value + msg.value;
 
-        emit Staked(msg.sender, msg.value);
-    }
+    emit Staked(msg.sender, msg.value);
+}
 
     function withdraw(uint256 amount) external {
         require(amount > 0, "Amount must be > 0");
