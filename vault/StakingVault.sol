@@ -1,24 +1,20 @@
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
 import "./RewardToken.sol";
 
-/// @title StakingVault
-/// @notice Stake ETH, earn RewardToken over time.
-
 contract StakingVault {
     RewardToken public rewardToken;
     address public owner;
 
-    uint256 public rewardRate;          // reward tokens per second (in wei, 18 decimals)
+    uint256 public rewardRate;
     uint256 public totalStaked;
     uint256 public rewardPerTokenStored;
     uint256 public lastUpdateTime;
 
     mapping(address => uint256) public stakedBalance;
-    mapping(address => uint256) public userRewardPerTokenPaid; // snapshot per user
-    mapping(address => uint256) public rewards;                // accumulated but unclaimed
+    mapping(address => uint256) public userRewardPerTokenPaid;
+    mapping(address => uint256) public rewards;
 
     event Staked(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
@@ -30,19 +26,12 @@ contract StakingVault {
         lastUpdateTime = block.timestamp;
     }
 
-    /// @notice Set the reward token address. Can only be called once by the owner.
     function setRewardToken(address _rewardToken) external {
         require(msg.sender == owner, "Not owner");
         require(address(rewardToken) == address(0), "Already set");
         rewardToken = RewardToken(_rewardToken);
     }
 
-    // ============================================================
-    //                    HELPER (given to you)
-    // ============================================================
-
-    /// @notice Calculate the current rewardPerToken value.
-    /// @dev If totalStaked is 0, return the stored value (no new rewards accumulate).
     function rewardPerToken() public view returns (uint256) {
         if (totalStaked == 0) {
             return rewardPerTokenStored;
@@ -52,46 +41,71 @@ contract StakingVault {
         );
     }
 
-    // ============================================================
-    //                 YOUR TASK: implement these
-    // ============================================================
-
-    /// @notice Deposit ETH into the vault.
-    /// Requirements:
-    /// - Must send more than 0 ETH
-    /// - Must update reward state before changing balances
-    /// - Must update stakedBalance, totalStaked
-    /// - Must emit Staked event
     function stake() external payable {
-        // TODO: implement
+        require(msg.value > 0, "Must send ETH");
+
+        // update reward state
+        rewardPerTokenStored = rewardPerToken();
+        lastUpdateTime = block.timestamp;
+
+        // update user rewards before balance changes
+        rewards[msg.sender] = earned(msg.sender);
+        userRewardPerTokenPaid[msg.sender] = rewardPerTokenStored;
+
+        // update balances
+        stakedBalance[msg.sender] += msg.value;
+        totalStaked += msg.value;
+
+        emit Staked(msg.sender, msg.value);
     }
 
-    /// @notice Withdraw staked ETH.
-    /// @param amount Amount of ETH to withdraw (in wei)
-    /// Requirements:
-    /// - Must have enough staked balance
-    /// - Must update reward state before changing balances
-    /// - Must update stakedBalance, totalStaked
-    /// - Must transfer ETH to caller
-    /// - Must emit Withdrawn event
     function withdraw(uint256 amount) external {
-        // TODO: implement
+        require(amount > 0, "Amount must be > 0");
+        require(stakedBalance[msg.sender] >= amount, "Insufficient stake");
+
+        // update reward state
+        rewardPerTokenStored = rewardPerToken();
+        lastUpdateTime = block.timestamp;
+
+        // update user rewards before balance changes
+        rewards[msg.sender] = earned(msg.sender);
+        userRewardPerTokenPaid[msg.sender] = rewardPerTokenStored;
+
+        // update balances
+        stakedBalance[msg.sender] -= amount;
+        totalStaked -= amount;
+
+        // transfer ETH
+        (bool success, ) = payable(msg.sender).call{value: amount}("");
+        require(success, "Transfer failed");
+
+        emit Withdrawn(msg.sender, amount);
     }
 
-    /// @notice Claim all pending reward tokens.
-    /// Requirements:
-    /// - Must update reward state
-    /// - Must mint reward tokens to caller via rewardToken.mint()
-    /// - Must reset caller's stored rewards to 0
-    /// - Must emit RewardsClaimed event
     function claimRewards() external {
-        // TODO: implement
+        // update reward state
+        rewardPerTokenStored = rewardPerToken();
+        lastUpdateTime = block.timestamp;
+
+        // calculate pending
+        rewards[msg.sender] = earned(msg.sender);
+        userRewardPerTokenPaid[msg.sender] = rewardPerTokenStored;
+
+        uint256 reward = rewards[msg.sender];
+        require(reward > 0, "No rewards");
+
+        // reset before external call
+        rewards[msg.sender] = 0;
+
+        // mint
+        rewardToken.mint(msg.sender, reward);
+
+        emit RewardsClaimed(msg.sender, reward);
     }
 
-    /// @notice View function: how many reward tokens has this user earned but not claimed?
-    /// @param account The user address
-    /// @return Total unclaimed rewards (in wei, 18 decimals)
     function earned(address account) public view returns (uint256) {
-        // TODO: implement
+        return (
+            stakedBalance[account] * (rewardPerToken() - userRewardPerTokenPaid[account]) / 1e18
+        ) + rewards[account];
     }
 }
